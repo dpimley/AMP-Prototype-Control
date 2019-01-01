@@ -4,9 +4,13 @@
  Author - David Pimley
 */
 
+#include <Servo.h>
+
 #define pin_in_1 2  // digital out
 #define pin_en_A 3  // PWM
 #define pin_in_2 4  // digital out
+
+#define pin_servo 5 // servo pwm pin
 
 #define FORWARD 0   // forward flag
 #define REVERSE 1   // reverse flag
@@ -15,6 +19,13 @@
 #define R_GEAR_2_D 0.06 // 60 mm
 
 #define WHEEL_DIAMETER 0.116 // 116 mm
+
+#define F_GEAR_SERVO_D 0.025 // 25 mm
+#define STEERING_LEVER 0.030 // 30 mm
+
+// MACROS
+
+#define RAD_TO_DEG(x) (round((180 * x) / 3.14159))
 
 /* 
    For Motor Control The Direction is Defined as:
@@ -27,6 +38,9 @@
    IN1 IN2 DIR
    H   L   CW
    L   H   CCW
+
+   MAX_SPEED W/ CURRENT CONFIG --> 0.125 m/s
+   MAX STEERING ANGLE          --> 
    
 */
 
@@ -35,19 +49,20 @@
 const float rpm_values[]           = {0, 5.26, 14.34, 19.0, 23.1, 26.0, 27.4, 29.1, 29.3, 30.3, 32.0};
 // The pwm setting for the respective motor rpm output
 const unsigned char pwm_settings[] = {0,   50,    75,  100,  125,  150,  175,  200,  225,  250,  255};
+
+// Instantiate the servo object for control
+Servo servo;
    
 void setup() {
   pinMode(pin_en_A, OUTPUT);
   pinMode(pin_in_1, OUTPUT);
   pinMode(pin_in_2, OUTPUT);
+  servo.attach(pin_servo);
   Serial.begin(9600);
 }
 
 void loop() {
-  move_translation(FORWARD, 0.1);
-  delay(2500);
-  move_translation(REVERSE, 0.1);
-  delay(2500);
+
 }
 
 /*
@@ -91,9 +106,29 @@ void move_translation(char dir, float vel) {
  This function moves the servo to the desired steering angle
 
  For consistency between the ROS framework ouput and the controls
- the angle will be measure in radians
+ the angle will be measure in radians.
+
+ The actual calculation will be used using the cosine rule.
+ The movement needed will be based off of the steering angle
+ given by ROS system.
  */
 void move_steering(float angle) {
+  // Initialize local variables
+  float steering_distance = 0.0 // the distance the rack needs to move on the
+                                // steering mechanism to get the given steering angle
+  // Calculate steering distance needed
+  steering_distance = sqrt((2 * (STEERING_LEVER * STEERING_LEVER)) - (2 * STEERING_LEVER * cos(angle)));
+
+  // Determine distance necessary servo needs to turn
+  // First check to see that the steering distance is not too large
+  // If it is reverse the vehicle
+  if (((F_GEAR_SERVO_D * 3.14159) / 4) < steering_distance) {
+    servo.write(90);
+    move_translation(REVERSE, 0.5)
+    return;
+  }
+
+  // Otherwise calculate the necessary servo angle
   
 }
 
@@ -183,6 +218,5 @@ int perform_linear_interpolation(float motor_rpm) {
   pwm_diff_high_low = pwm_settings[i] - pwm_settings[i - 1];
   // Adding proportional delta to the low bound of the pwm settings
   resulting_pwm = ceil(pwm_settings[i - 1] + ((rpm_diff_spec_low / rpm_diff_high_low) * pwm_diff_high_low));
-  Serial.print(resulting_pwm);
   return resulting_pwm;
 }
