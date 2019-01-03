@@ -21,6 +21,7 @@
 #define WHEEL_DIAMETER 0.116 // 116 mm
 
 #define F_GEAR_SERVO_D 0.025 // 25 mm
+#define QUARTER_GEAR_CIRCUMFERENCE 0.019635 // 19.635 mm
 #define STEERING_LEVER 0.030 // 30 mm
 
 // MACROS
@@ -62,7 +63,10 @@ void setup() {
 }
 
 void loop() {
-
+  move_steering(-0.174533);
+  delay(5000);
+  move_steering(0.610865);
+  delay(5000);
 }
 
 /*
@@ -76,6 +80,9 @@ void loop() {
 
   This function takes the inverse of this and calculates what motor
   RPM is necessary in order to get the desired velocity.
+
+  Going forward is a postive motor speed
+  Going backward is a negative motor speed
 */
 void move_translation(char dir, float vel) {
   // Initialize local variables
@@ -111,25 +118,41 @@ void move_translation(char dir, float vel) {
  The actual calculation will be used using the cosine rule.
  The movement needed will be based off of the steering angle
  given by ROS system.
+
+ Going left is a positive angle in radians
+ Going right is a negative angle in radians
  */
 void move_steering(float angle) {
   // Initialize local variables
-  float steering_distance = 0.0 // the distance the rack needs to move on the
-                                // steering mechanism to get the given steering angle
+  float steering_distance = 0.0; // the distance the rack needs to move on the
+                                 // steering mechanism to get the given steering angle
+  float angle_delta = 0.0;       // the angle to be added / subtracted to get the full angle
   // Calculate steering distance needed
-  steering_distance = sqrt((2 * (STEERING_LEVER * STEERING_LEVER)) - (2 * STEERING_LEVER * cos(angle)));
+  steering_distance = sqrt((2 * (STEERING_LEVER * STEERING_LEVER)) - (2 * STEERING_LEVER * STEERING_LEVER * cos(angle)));
 
   // Determine distance necessary servo needs to turn
   // First check to see that the steering distance is not too large
   // If it is reverse the vehicle
   if (((F_GEAR_SERVO_D * 3.14159) / 4) < steering_distance) {
     servo.write(90);
-    move_translation(REVERSE, 0.5)
+    move_translation(REVERSE, 0.5);
     return;
   }
 
   // Otherwise calculate the necessary servo angle
-  
+  angle_delta = (steering_distance / QUARTER_GEAR_CIRCUMFERENCE) * 90;
+
+  // An angle that is greater than 90 indicates a right turn on the servo
+  // An angle that is less than 90 indicates a left turn on the servo
+  if (angle < 0) {
+    servo.write(90 + angle_delta);
+  }
+  else if (angle > 0) {
+    servo.write(90 - angle_delta);
+  }
+  else {
+    servo.write(90);
+  }
 }
 
 /*
